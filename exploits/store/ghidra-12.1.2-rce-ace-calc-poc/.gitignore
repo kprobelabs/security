@@ -1,0 +1,6 @@
+artifacts/
+*.class
+*.log
+__pycache__/
+*.pyc
+

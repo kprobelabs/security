@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+echo "CALC_HELPER_RAN $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> ./calc_hit.log
+/mnt/c/WINDOWS/system32/calc.exe >/dev/null 2>&1 &
+exit 0

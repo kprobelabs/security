@@ -1,0 +1,8 @@
+runtime/
+*.log
+*.status
+*.stdout.txt
+*.stderr.txt
+__pycache__/
+.venv/
+venv/

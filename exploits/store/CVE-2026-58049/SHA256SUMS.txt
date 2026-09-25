@@ -1,0 +1,6 @@
+673708db6c4a4688b0dd2e997f903820ad49d0a22fe32f016738df31207df405  ffmpeg-rasc-dlta-calc-poc/README.md
+1c2871104b11b13ef03872113466beb7984dc8a6d49cd8150f33ccbb93a3a35a  ffmpeg-rasc-dlta-calc-poc/poc/ffmpeg_rasc_dlta_calc_poc.c
+6964fcd5c70bd71ac3a15e8e54968d1aaca24490a458c7d954511351c5ae5a11  ffmpeg-rasc-dlta-calc-poc/scripts/build_from_checkout.sh
+8e432e3d82695fe9b18c9f6f35ae420778811c5b43e894b0f817cc0bf76d0cae  ffmpeg-rasc-dlta-calc-poc/scripts/run_calc_pop.sh
+c51146d5ab0e320a794f3445a697dfcca876c105cc58a5aeba5ad1e7d941b1ed  ffmpeg-rasc-dlta-calc-poc/evidence/current-master-asan.txt
+8d28c7f1d50c1d819b5bab6efa3f3ace0be46eae7203fbd0febb8e7b379c011f  ffmpeg-rasc-dlta-calc-poc/evidence/local-calc-pop.txt

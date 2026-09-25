@@ -1,0 +1,10 @@
+{
+  "name": "firefox-smartwindow-private-url-exfil-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local OpenAI-compatible endpoint for Firefox Smart Window private URL token exfiltration validation.",
+  "scripts": {
+    "poc": "node poc/smartwindow_poc_server.js"
+  },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,14 @@
+c-ares upstream main
+commit: c93e50f3ebc0373fe57677523ec960f6c1cb0e15
+result: run=1 rc=77
+stderr: CARES_RCE_PAYLOAD_TRIGGERED
+marker: c-ares control-flow payload reached pid=6188
+desktop: CalculatorApp.exe started, ApplicationFrameHost title=Calculator
+
+c-ares latest official release
+tag: v1.34.6
+commit: 3ac47ee46edd8ea40370222f91613fc16c434853
+result: run=1 rc=77
+stderr: CARES_RCE_PAYLOAD_TRIGGERED
+marker: c-ares control-flow payload reached pid=3606
+desktop: CalculatorApp.exe started, ApplicationFrameHost title=Calculator

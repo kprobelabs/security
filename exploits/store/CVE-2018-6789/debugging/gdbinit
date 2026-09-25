@@ -1,0 +1,12 @@
+set disassembly-flavor intel
+set pagination off
+set print pretty on
+set follow-fork-mode child
+set history save on 
+set confirm off
+set height 0
+
+# light terminal background color fix
+source /opt/pwndbg/gdbinit.py
+set syntax-highlight-style friendly
+

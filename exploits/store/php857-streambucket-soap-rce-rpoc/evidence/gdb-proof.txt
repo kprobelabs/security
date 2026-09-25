@@ -1,0 +1,22 @@
+PHP 8.5.7 release build, PIE base fixed by debugger for replay.
+
+watch_zend_execute_internal value=0x555555a9f130
+#0 _zend_hash_index_add_or_update_i(flag=1, pData=0x7fffffff9e70, h=93824997781808, ht=0x7ffff4083050) at Zend/zend_hash.c:1187
+#1 zend_hash_index_update(ht=0x7ffff4083050, h=93824997781808, pData=0x7fffffff9e70) at Zend/zend_hash.c:1227
+#2 zend_symtable_update(pData=0x7fffffff9e70, key=0x7ffff40a8300, ht=0x7ffff4083050) at Zend/zend_hash.h:492
+#3 make_http_soap_request(...) at ext/soap/php_http.c:1066
+#4 zim_SoapClient___doRequest(...) at ext/soap/soap.c:2824
+#5 zend_call_function(...) at Zend/zend_execute_API.c:1023
+
+overwrite_returned
+
+hit_zif_system execute_data=0x7ffff40159d0 return_value=0x7fffffffa8c0
+#0 zif_system(execute_data=0x7ffff40159d0, return_value=0x7fffffffa8c0) at ext/standard/exec.c:250
+#1 ZEND_DO_FCALL_SPEC_RETVAL_UNUSED_HANDLER() at Zend/zend_vm_execute.h:2029
+#2 execute_ex(ex=0x7ffff40159d0) at Zend/zend_vm_execute.h:116501
+#3 zend_execute(op_array=0x7ffff40a8000, return_value=0x0) at Zend/zend_vm_execute.h:121944
+#4 zend_execute_script(...) at Zend/zend.c:1978
+#5 php_execute_script_ex(...) at main/main.c:2641
+
+marker_path=/tmp/php857_rce_724.txt
+marker_content=PHP857_RCE

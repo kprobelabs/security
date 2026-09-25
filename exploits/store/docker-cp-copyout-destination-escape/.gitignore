@@ -1,0 +1,4 @@
+*.tmp
+*.log
+docker-cp.stdout
+docker-cp.stderr
