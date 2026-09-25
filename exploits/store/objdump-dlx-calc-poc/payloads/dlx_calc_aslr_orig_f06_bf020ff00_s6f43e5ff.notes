@@ -1,0 +1,34 @@
+layout=orig
+flag_byte4=0x06
+buf_delta=0xf020ff00
+wide_delta=0x4fff0000
+system_delta=0x6f43e5ff
+command=P
+off_io=-0x46a0 off_sec=0xb20 rbase=0x1f0
+sec_size_offset=0x38
+
+000 target=0x23b sym=0x00ffffff patch reloc2 address high dword bytes 0..2
+001 target=0x23c sym=0x000000ff patch reloc2 address high dword byte 3
+002 target=-0x46a1 sym=0x00d824ad stage write bytes at -0x46a0
+003 target=0x29b sym=0x00ffffff patch reloc5 address high dword bytes 0..2
+004 target=0x29c sym=0x000000ff patch reloc5 address high dword byte 3
+005 target=-0x46a0 sym=0x000000fb finish write bytes at -0x46a0
+006 target=0xb57 sym=0x00ffffff stage write bytes at 0xb58
+007 target=0xb58 sym=0x000000ff finish write bytes at 0xb58
+008 target=0xb5b sym=0x00ffffff stage write bytes at 0xb5c
+009 target=0xb5c sym=0x000000ff finish write bytes at 0xb5c
+010 target=0x37b sym=0x00ffffff patch reloc12 address high dword bytes 0..2
+011 target=0x37c sym=0x000000ff patch reloc12 address high dword byte 3
+012 target=-0x4680 sym=0xf020ff00 FILE+0x20 input buffer pointer -> FILE fake wide vtable
+013 target=0x3db sym=0x00ffffff patch reloc15 address high dword bytes 0..2
+014 target=0x3dc sym=0x000000ff patch reloc15 address high dword byte 3
+015 target=-0x4638 sym=0x6f43e5ff FILE+0x68 _IO_2_1_stderr_ -> system
+016 target=0x43b sym=0x00ffffff patch reloc18 address high dword bytes 0..2
+017 target=0x43c sym=0x000000ff patch reloc18 address high dword byte 3
+018 target=-0x4600 sym=0x4fff0000 FILE+0xa0 real wide_data -> FILE-0xc0 fake wide_data
+019 target=0x49b sym=0x00ffffff patch reloc21 address high dword bytes 0..2
+020 target=0x49c sym=0x000000ff patch reloc21 address high dword byte 3
+021 target=-0x45c8 sym=0x00000002 FILE+0xd8 _IO_file_jumps -> interior vtable with finish=_IO_wfile_overflow
+022 target=0x0 sym=0x00000000 pad R_DLX_NONE
+023 target=0x0 sym=0x00000000 pad R_DLX_NONE
+024 target=0x0 sym=0x00000000 pad R_DLX_NONE

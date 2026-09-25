@@ -1,0 +1,10 @@
+{
+  "name": "lunar-modrinth-chain-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Benign calc-pop proof for the Lunar Client Modrinth Explore chain.",
+  "scripts": {
+    "poc": "node poc/calc-pop.js"
+  },
+  "license": "UNLICENSED"
+}

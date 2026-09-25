@@ -1,0 +1,32 @@
+FFmpeg upstream master
+bcd2c69e087a09b07cf45c6bd2428ee1ccb2925c
+target_dec_rasc_fuzzer sha256 1a69d27a5e06673832bd677189d790cb3cae98de1ba15b1600f3cb98d9510cb9
+rasc-dlta-oob-64.bin sha256 80e670d8986992e1dad50c0df554d9826d81d9413fd43be95be431f15c4cf67e
+
+ASAN_OPTIONS=allocator_may_return_null=1 ./target_dec_rasc_fuzzer ./rasc-dlta-oob-64.bin
+
+==513==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50a000000442
+READ of size 4 at 0x50a000000442 thread T0
+    #0 decode_dlta build/src/libavcodec/rasc.c:421:17
+    #1 decode_frame build/src/libavcodec/rasc.c:712:19
+    #2 decode_simple_internal build/src/libavcodec/decode.c:451:16
+    #3 decode_simple_receive_frame build/src/libavcodec/decode.c:611:15
+    #4 ff_decode_receive_frame_internal build/src/libavcodec/decode.c:647:15
+    #5 decode_receive_frame_internal build/src/libavcodec/decode.c:665:15
+    #6 avcodec_send_packet build/src/libavcodec/decode.c:749:15
+    #7 LLVMFuzzerTestOneInput build/src/tools/target_dec_fuzzer.c:576:25
+
+0x50a000000442 is located 2 bytes after 64-byte region [0x50a000000400,0x50a000000440)
+allocated by thread T0 here:
+    #0 posix_memalign
+    #1 av_malloc build/src/libavutil/mem.c:107:9
+    #2 av_buffer_alloc build/src/libavutil/buffer.c:82:12
+    #3 av_buffer_allocz build/src/libavutil/buffer.c:95:24
+    #4 fuzz_video_get_buffer build/src/tools/target_dec_fuzzer.c:145:29
+    #5 fuzz_get_buffer2 build/src/tools/target_dec_fuzzer.c:168:18
+    #6 ff_get_buffer build/src/libavcodec/decode.c:1818:11
+    #7 init_frames build/src/libavcodec/rasc.c:107:16
+    #8 decode_fint build/src/libavcodec/rasc.c:162:11
+    #9 decode_frame build/src/libavcodec/rasc.c:706:19
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow build/src/libavcodec/rasc.c:421:17 in decode_dlta

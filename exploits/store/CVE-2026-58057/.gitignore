@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.log
+*.loader.js
+*_marker.txt
+dist/
+build/

